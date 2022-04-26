@@ -9,6 +9,7 @@ import os
 import datetime
 from colorama import init, Fore
 from telethon.tl.types import UserStatusRecently
+import time
 
 init()
 
@@ -24,16 +25,46 @@ error = lg + '[' + r + 'ERROR' + lg + ']' + rs
 success = w + '[' + lg + 'SUCCESS' + w + ']' + rs
 INPUT = lg + '[' + w + 'INPUT' + lg + ']' + rs
 colors = [lg, w, r, cy]
+
+
 def banner():
     f = pyfiglet.Figlet(font='slant')
     logo = f.renderText('Genisys')
     print(random.choice(colors) + logo + rs)
+
 
 def clr():
     if os.name == 'nt':
         os.system('cls')
     else:
         os.system('clear')
+
+
+def save_file(_group_name, _batch, _members):
+    with open(_group_name + '_' + str(_batch) + '.csv', "w", encoding='UTF-8') as f:
+        writer = csv.writer(f, delimiter=",", lineterminator="\n")
+        writer.writerow(['username', 'user id', 'access hash', 'group', 'group id'])
+        if select == 'y':
+            for member in _members:
+                accept = True
+                if not member.status == UserStatusRecently():
+                    accept = False
+                if accept:
+                    if member.username:
+                        _username = member.username
+                    else:
+                        _username = ''
+                    writer.writerow([_username, member.id, member.access_hash, group.title, group.id])
+            print(f'{success}{lg} Filtered!')
+        else:
+            for member in members:
+                if member.username:
+                    _username = member.username
+                else:
+                    _username = ''
+                writer.writerow([_username, member.id, member.access_hash, group.title, group.id])
+    f.close()
+
 
 clr()
 banner()
@@ -56,6 +87,7 @@ ind = int(input(f'{INPUT}{lg} Enter choice: '))
 api_id = accs[ind][0]
 api_hash = accs[ind][1]
 phone = accs[ind][2]
+# proxy = (socks.SOCKS5, "127.0.0.1", "10808")
 client = TelegramClient(phone, api_id, api_hash)
 client.connect()
 if not client.is_user_authorized():
@@ -67,39 +99,32 @@ if not client.is_user_authorized():
         print(f'{error}{r}{phone} is banned!{rs}')
         print(f'{error}{r} Run manager.py to filter them{rs}')
         sys.exit()
-username = input(f'{INPUT}{lg} Enter the exact username of the public group[Without @]: {r}')
-target_grp = 't.me/' + str(username)
+groupname = input(f'{INPUT}{lg} Enter the exact username of the public group[Without @]: {r}')
+select = str(input(f'{INPUT}{lg} Do you wanna filter active users?[y/n]: '))
+target_grp = 't.me/' + str(groupname)
 group = client.get_entity(target_grp)
-time = datetime.datetime.now().strftime("%H:%M")
-print('\n' + info + lg + ' Started on ' + str(time) + rs)
+now = datetime.datetime.now().strftime("%H:%M")
+print('\n' + info + lg + ' Started on ' + str(now) + rs)
 print(f'{info}{lg} Scraping members from {rs}' + str(group.title))
 members = []
-members = client.get_participants(group, aggressive=True)
-print(f'{info}{lg} Saving in members.csv...{rs}')
-select = str(input(f'{INPUT}{lg} Do you wanna filter active users?[y/n]: '))
-with open("members.csv", "w", encoding='UTF-8') as f:
-    writer = csv.writer(f, delimiter=",", lineterminator="\n")
-    writer.writerow(['username', 'user id', 'access hash', 'group', 'group id'])
-    if select == 'y':
-        for member in members:
-            accept = True
-            if not member.status == UserStatusRecently():
-                accept = False
-            if accept:
-                if member.username:
-                    username = member.username
-                else:
-                    username = ''
-                writer.writerow([username, member.id, member.access_hash, group.title, group.id])
-        print(f'{success}{lg} Filtered!')
-    else:
-        for member in members:
-            if member.username:
-                username = member.username
-            else:
-                username = ''
-            writer.writerow([username, member.id, member.access_hash, group.title, group.id])
-f.close()
+count = 1
+batch = 0
+
+
+for user in client.iter_participants(group, aggressive=True):
+    if count % 1000 == 0:
+        print(f'{info}{lg}Saving batch ' + str(batch))
+        save_file(groupname, batch, members)
+        members = []
+        batch = batch + 1
+        print(f'{info}{lg}Waiting for 60s..')
+        time.sleep(60)
+        print(f'{info}{lg}Getting batch ' + str(batch))
+    members.append(user)
+    count = count + 1
+print(f'{info}{lg}Saving batch ' + str(batch))
+save_file(groupname, batch, members)
+
 print(f'{success}{lg} Scraping Successful{rs}')
 input('\nPress enter to exit...')
 clr()
@@ -108,4 +133,3 @@ with open('target_grp.txt', 'w') as f:
     f.write(target_grp)
 f.close()
 sys.exit()
-
